@@ -1,22 +1,36 @@
 # 內建模組
 import os
-# 專案模組
+# 自訂義模組
 from Customization_tools import *
+# 專案模組
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, AzureOpenAIEmbeddings
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.output_parsers.rail_parser import GuardrailsOutputParser
 from langchain.agents import create_openai_tools_agent, AgentExecutor, tool
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_openai import ChatOpenAI
+from langchain_community.vectorstores import Qdrant
 # 記憶
 from langchain.memory import ConversationTokenBufferMemory
-from dotenv import load_dotenv
 from langchain_community.chat_message_histories import RedisChatMessageHistory
+# loader
+from langchain_community.document_loaders import WebBaseLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+# 環境變量
+from dotenv import load_dotenv
 
 load_dotenv()
 api_key = os.getenv('OPENAI_API_KEY')
+
+# azure embedding info
+azure_embeddings_api_key = os.getenv('AZURE_EMBEDDINGS_API_KEY')
+azure_embeddings_deployment = os.getenv('AZURE_EMBEDDINGS_DEPLOYMENT')
+azure_openai_endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
+azure_openai_version = os.getenv('AZURE_OPENAI_VERSION')
+
+
 app = FastAPI()
 
 
@@ -221,8 +235,38 @@ def chat(query: str):
 
 
 @app.post("/add_url")
-def add_url(urls: str):
-    return {"url": urls}
+def add_url(url: str):
+    # 1. loader
+    loader = WebBaseLoader(url)
+    data = loader.load()
+    # chunk
+    spliter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=50,
+    )
+    chunks = spliter.split_documents(data)
+    # 3. 調用embedding模型向量化
+    embedding_model = AzureOpenAIEmbeddings(
+        api_key=azure_embeddings_api_key,
+        azure_deployment=azure_embeddings_deployment,
+        openai_api_version=azure_openai_version,
+        azure_endpoint=azure_openai_endpoint,
+    )
+    print(chunks)
+    # 3. 將向量儲存
+    qdrant = Qdrant.from_documents(
+        chunks,
+        embedding_model,
+        collection_name="local_documents",
+        # qdrant client info
+        url=os.getenv('QDRANT_CLIENT_URL'),
+        api_key=os.getenv('QDRANT_CLIENT_API_KEY'),
+        timeout=60,
+    )
+    if qdrant:
+        print("向量化完成")
+
+    return {"message": 'success'}
 
 
 @app.post("/add_pdf")
