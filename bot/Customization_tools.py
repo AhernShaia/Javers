@@ -20,9 +20,8 @@ search_api_key = os.getenv('SERPAPI_API_KEY')
 # azure embedding info
 azure_embeddings_api_key = os.getenv('AZURE_EMBEDDINGS_API_KEY')
 azure_embeddings_deployment = os.getenv('AZURE_EMBEDDINGS_DEPLOYMENT')
-azure_openai_endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
+azure_openai_endpoint = os.getenv('AZURE_OPENAI_EMBEDDINGS_ENDPOINT')
 azure_openai_version = os.getenv('AZURE_OPENAI_VERSION')
-
 character_calculation_api_key = os.getenv('CHARACTER')
 
 
@@ -83,8 +82,9 @@ def qdrant_search(query: str):
 def character_calculation(query: str):
     """當用戶詢問命理算命相關問題時，使用這個工具，需要用戶輸入: 姓名、出生年份、出生月份、出生日期、性別，如果缺少 姓名、出生年份、出生月份、出生日期、性別，則不可以使用，否則將受到懲罰。"""
     url = f"https://api.yuanfenju.com/index.php/v1/Bazi/cesuan"
+    character_calculation_api_key = '9hoP30DRGTth7nbsV0S6TAPHM'
     prompt = ChatPromptTemplate.from_template(
-        """你是參數查詢助手，根據使用者輸入內容找出相關的參數並按json格式返回。JSON欄位如下： -"api_ke":"{character_calculation_api_key}", - "name":"姓名", - "sex ":"性別，0表示男，1表示女，依姓名判斷", - "type":"日曆類型，0農曆，1公里，預設1"，- "year":"出生年份例：1998", - "month":"出生月份例8", - "day":"出生日期，例：8", - "hours":"出生小時例14", - "minute":"0"，如果沒有找到 相關參數，則需要提醒使用者告訴你這些內容，只回傳資料結構，不要有其他的評論，使用者輸入:{query}""")
+        """你是參數查詢助手，根據使用者輸入內容找出相關的參數並按json格式返回。JSON欄位如下： -"api_ke":"9hoP30DRGTth7nbsV0S6TAPHM", - "name":"姓名", - "sex ":"性別，0表示男，1表示女，依姓名判斷", - "type":"日曆類型，0農曆，1公里，預設1"，- "year":"出生年份例：1998", - "month":"出生月份例8", - "day":"出生日期，例：8", - "hours":"出生小時，例14，預設為11", - "minute":"0"，如果沒有找到 相關參數，則需要提醒使用者告訴你這些內容，只回傳資料結構，不要有其他的評論，使用者輸入:{query}""")
 
     parser = JsonOutputParser()
     prompt = prompt.partial(from_instruction=parser.get_format_instructions())
@@ -125,27 +125,28 @@ def character_calculation(query: str):
 
 
 # API 暫時無法使用
-# @tool
-# def dream_interpretation(query: str):
-#     """只有使用者想要解夢的時候才會使用這個工具。"""
-#     url = f"https://api.yuanfenju.com/index.php/v1/Gongju/zhougong"
-#     data = {
-#         "api_key": character_calculation_api_key,
-#         "title_zhougong": query  # 將 query 變數作為 title_zhougong 的值
-#     }
-#     result = requests.post(url, data=data)
-#     if result.status_code == 200:
-#         print("----------------------返回結果----------------------")
-#         print(result.json())
-#         print("----------------------返回結果----------------------")
-#         try:
-#             json = result.json()
-#             returnstring = f"解夢結果:{json["data"]["message"]}"
-#             return returnstring
-#         except Exception as e:
-#             return "無法獲取解夢資訊，請檢察用戶輸入的內容是否正確。"
-#     else:
-#         return "無預期錯誤，請稍後再試。"
+@tool
+def dream_interpretation(query: str):
+    """只有使用者想要詢問關於夢境的時候才會使用這個工具。我想讓你充當解夢師。我將為您描述我的夢，您將根據夢中出現的符號和主題提供解釋。不要提供有關夢想家的個人意見或假設。僅根據所提供的資訊提供事實解釋。"""
+    url = f"https://api.yuanfenju.com/index.php/v1/Gongju/zhougong"
+    data = {
+        "api_key": character_calculation_api_key,
+        "title_zhougong": query  # 將 query 變數作為 title_zhougong 的值
+    }
+    result = requests.post(url, data=data)
+    if result.status_code == 200:
+        print("----------------------返回結果----------------------")
+        print(result.json())
+        print("----------------------返回結果----------------------")
+        try:
+            json = result.json()
+            returnstring = f"解夢結果:{json["data"]["message"]}"
+            return returnstring
+        except Exception as e:
+            return "無法獲取解夢資訊，請檢察用戶輸入的內容是否正確。"
+    else:
+        return "無預期錯誤，請稍後再試。"
+
 
 @tool
 def jiemeng(query: str):
@@ -165,4 +166,4 @@ def jiemeng(query: str):
         returnstring = json.loads(result.text)
         return returnstring
     else:
-        return "技术错误，请告诉用户稍后再试。"
+        return "無預期錯誤，請稍後再試。"

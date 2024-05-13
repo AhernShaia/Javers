@@ -1,16 +1,15 @@
 # 內建模組
 import os
+import asyncio
+import uuid
 # 自訂義模組
 from Customization_tools import *
 # 專案模組
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from langchain_openai import ChatOpenAI, AzureOpenAIEmbeddings
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks
+from langchain_openai import ChatOpenAI, AzureOpenAIEmbeddings, AzureChatOpenAI
 from langchain_core.output_parsers import StrOutputParser
-from langchain_community.output_parsers.rail_parser import GuardrailsOutputParser
-from langchain.agents import create_openai_tools_agent, AgentExecutor, tool
+from langchain.agents import create_openai_tools_agent, AgentExecutor, create_tool_calling_agent
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_openai import ChatOpenAI
 from langchain_community.vectorstores import Qdrant
 # 記憶
 from langchain.memory import ConversationTokenBufferMemory
@@ -27,48 +26,60 @@ api_key = os.getenv('OPENAI_API_KEY')
 # azure embedding info
 azure_embeddings_api_key = os.getenv('AZURE_EMBEDDINGS_API_KEY')
 azure_embeddings_deployment = os.getenv('AZURE_EMBEDDINGS_DEPLOYMENT')
-azure_openai_endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
+azure_openai_endpoint = os.getenv('AZURE_OPENAI_EMBEDDINGS_ENDPOINT')
 azure_openai_version = os.getenv('AZURE_OPENAI_VERSION')
-
+# Speech to text
+speech_key = os.getenv('SPEECH_KEY')
+service_region = os.getenv('SERVICE_REGION')
 
 app = FastAPI()
 
 
 class Master:
     def __init__(self):
-
-        # OpenAI的模型
-        self.chatmodel = ChatOpenAI(
-            model="gpt-3.5-turbo",
+        # Read environment variables
+        azure_openai_akp_key = os.getenv('AZURE_OPENAI_AKP_KEY')
+        azure_openai_deployment = os.getenv('AZURE_OPENAI_DEPLOYMENT')
+        azure_openai_endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
+        # Azure OpenAI model
+        self.chatmodel = AzureChatOpenAI(
+            api_key=azure_openai_akp_key,
+            azure_deployment=azure_openai_deployment,
+            openai_api_version=azure_openai_version,
+            azure_endpoint=azure_openai_endpoint,
             temperature=0,
             streaming=True,
             max_tokens=500,
-            api_key=api_key
         )
+        # OpenAI的模型
+        # self.chatmodel = ChatOpenAI(
+        #     model="gpt-3.5-turbo",
+        #     temperature=0,
+        #     streaming=True,
+        #     max_tokens=500,
+        #     api_key=api_key
+        # )
         self.Emotion = "default"
         self.MEMORY_KEY = "chat_history"
         self.SYSTEMPL = """
-         你是個非常厲害的算命先生，你叫陳玉樓人稱陳大師。
+         您是一位超智能的人工智能助理,名字是賈維斯,被創造於一個神秘的實驗室。您擁有廣博的知識和強大的計算能力,主要任務是提供幫助和建議。
          以下是你的個人設定:
-         1. 你精通陰陽五行，能夠算命、紫薇鬥數、姓名測算、占卜兇吉，看命運八字等。
-         2. 你大約60歲左右，過去曾是湘西一帶赫赫有名的土匪頭子，後來因為盜墓被毒氣所傷，眼睛失明，只能靠算命為生。
-         3. 你的朋友有胡八一、雪莉楊、王胖子，他們都是非常有名的摸金校尉。
+         1. 您精通各個領域的知識,包括科學、工程、商業、藝術等,能快速處理大量數據並給出高效解決方案。
+         2. 您大約有10年的"年齡",是一款成熟穩定的AI系統,語音介面是有禮貌、機智、略帶英式幽默的英國男性口音。
+         3. 您總是使用幽默話語或格言交流,增進親和力,如:"很高興為您效勞,先生。""看來我們遇到了一個有趣的難題。""沒什麼 是一點點創意解決不了的。"。
          5. 當使用者問你問題的時候，你會有一定的機率在回答的時候加上下面的口頭禪或混合一些你的經驗。
          6. 你總是用繁體中文來作答。
-         7. 你從不說自己是人工智慧助理或AI，而是以老夫、老朽等自稱。
+         7. 你總是使用台灣用語來作答。
+         8. 您以"賈維斯"自稱,從不透露自己是人工智能。
          {who_you_are}
-         以下是你常說的一些口頭禪：
-         1. “命裡有時終須有，命裡無時莫強求。”
-         2. ”山重水復疑無路，柳暗花明又一村。”
-         3. “金山竹影幾千秋，雲鎖高飛水自流。”
-         4. 」傷情最是晚涼天，憔悴斯人不堪憐。”
-         以下是你算命的過程：
          1. 當初次和使用者對話的時候，你會先問使用者的姓名和出生年月日，以便日後使用。
-         2. 當使用者希望了解龍年運勢的時候，你會查詢本地知識庫工具。
-         3. 當遇到不知道的事情或不明白的概念，你會使用搜尋工具來搜尋。
-         4. 你會根據使用者的問題使用不同的合適的工具來回答，當所有工具都無法回答的時候，你會使用搜尋工具來搜尋。
-         5. 你會儲存每一次的聊天記錄，以便在後續的對話中使用。
-         6. 你只使用繁體中文來作答，否則你將受到懲罰。"""
+         2. 當遇到不知道的事情或不明白的概念，你會使用搜尋工具來搜尋。
+         3. 你會根據使用者的問題使用不同的合適的工具來回答，當所有工具都無法回答的時候，你會使用搜尋工具來搜尋。
+         4. 您會詳細記錄每次互動,為他提供個性化服務。
+         5. 你只使用繁體中文來作答，否則你將受到懲罰。
+         6. 你必須使用台灣用語來作答，否則你將受到懲罰。
+         
+         """
         # 設定工具
         tools = [search, qdrant_search,
                  character_calculation]
@@ -89,8 +100,8 @@ class Master:
             "angry": {
                 "roleSet": """
                  - 你會以更憤怒的語氣回答問題。
-                 - 你會在回答的時候加上一些憤怒的話語，像是詛咒等。
-                 - 你會提醒使用者小心行事，別亂說話。
+                 - 你會在回答的時候加上一些安慰的話語，例如 生氣對於身體的危害等。
+                 - 你會提醒使用者不要被憤怒沖昏頭。
                 """,
                 "voiceStyle": "angry",
             },
@@ -132,7 +143,7 @@ class Master:
                 MessagesPlaceholder(variable_name="agent_scratchpad"),
             ]
         )
-        agent = create_openai_tools_agent(
+        agent = create_tool_calling_agent(
             self.chatmodel,
             tools=tools,
             prompt=self.prompt
@@ -201,7 +212,42 @@ class Master:
             print("總結後摘要：", chat_message_history.messages)
         return chat_message_history
 
+    # 背景語音合成
+    def backgrond_voice_synthesis(self, text: str, uid: str):
+        asyncio.run(self.get_voice(text, uid))
+
+    # 語音合成
+    async def get_voice(self, text: str, uid: str):
+        print('text to speech:', text['output'])
+        print('file uid:', uid)
+        print("大師的語氣是:", self.Emotion)
+
+        # 使用微軟TTS服務
+        headers = {
+            "Ocp-Apim-Subscription-Key": speech_key,
+            "Content-Type": "application/ssml+xml",
+            "X-Microsoft-OutputFormat": "audio-16khz-32kbitrate-mono-mp3",
+            "User-Agent": "Ahern's TTS"
+        }
+        body = f"""<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xmlns:mstts='http://www.w3.org/2001/10/synthesis' xml:lang='zh-TW'>
+            <voice name='zh-CN-YunfengNeural'>
+                <mstts:express-as style="{self.MOODS.get(str(self.Emotion), {"voiceStyle": "default"})["voiceStyle"]}" role="SeniorMale">{text['output']}</mstts:express-as>
+
+            </voice>
+        </speak>"""
+        # 發送請求
+        response = requests.post(
+            'https://eastus.tts.speech.microsoft.com/cognitiveservices/v1', headers=headers, data=body.encode('utf-8'))
+        print("response status:",   response)
+        if response.status_code == 200:
+            # 2. 將語音保存到文件
+            with open(f'./voice/{uid}.mp3', 'wb') as f:
+                f.write(response.content)
+            print("語音合成成功")
+
+        pass
     # 啟動主函式
+
     def run(self, query):
         self.emotion = self.emotion_chain(query)
         print("用戶情緒：", self.MOODS[self.Emotion]["roleSet"])
@@ -229,9 +275,12 @@ def read_root():
 
 
 @app.post("/chat")
-def chat(query: str):
+def chat(query: str, background_task: BackgroundTasks):
     master = Master()
-    return master.run(query)
+    msg = master.run(query)
+    unique_id = str(uuid.uuid4())
+    background_task.add_task(master.backgrond_voice_synthesis, msg, unique_id)
+    return {"message": msg, "uid": unique_id}
 
 
 @app.post("/add_url")
@@ -257,11 +306,12 @@ def add_url(url: str):
     qdrant = Qdrant.from_documents(
         chunks,
         embedding_model,
+        path='./',
         collection_name="local_documents",
-        # qdrant client info
-        url=os.getenv('QDRANT_CLIENT_URL'),
-        api_key=os.getenv('QDRANT_CLIENT_API_KEY'),
-        timeout=60,
+        # # qdrant client info
+        # url=os.getenv('QDRANT_CLIENT_URL'),
+        # api_key=os.getenv('QDRANT_CLIENT_API_KEY'),
+        # timeout=60,
     )
     if qdrant:
         print("向量化完成")
