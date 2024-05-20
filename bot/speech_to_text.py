@@ -10,7 +10,7 @@ azure_endpoint = os.getenv('WHISPER_ENDPOINT')
 # 只需要傳入檔案路徑即可
 
 
-def transcribe_audio(file_path):
+def speech_to_text(file_path):
     client = AzureOpenAI(
         api_key=api_key,
         api_version=api_version,

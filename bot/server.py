@@ -152,7 +152,7 @@ class Master:
         memory = ConversationTokenBufferMemory(
             llm=self.chatmodel,
             human_prefix="用戶",
-            ai_prefix="陳大師",
+            ai_prefix="Javers",
             memory_key=self.MEMORY_KEY,
             output_key="output",
             return_messages=True,
@@ -241,7 +241,7 @@ class Master:
         print("response status:",   response)
         if response.status_code == 200:
             # 2. 將語音保存到文件
-            with open(f'./voice/{uid}.mp3', 'wb') as f:
+            with open(f'./bot/voice/{uid}.mp3', 'wb') as f:
                 f.write(response.content)
             print("語音合成成功")
 
