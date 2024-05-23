@@ -1,0 +1,8 @@
+# .dockerignore
+static/
+collection/
+.gitignore
+meta.json
+bot/voice/*.mp3
+bot/__pycache__/*
+*.sh
