@@ -7,3 +7,4 @@ meta.json
 *.mp3
 .DS_Store
 static/
+customer
