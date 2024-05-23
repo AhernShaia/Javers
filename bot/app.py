@@ -195,20 +195,20 @@ class Master:
     def get_memory(self):
 
         # Redis主機
-        host = "redis-19940.c299.asia-northeast1-1.gce.redns.redis-cloud.com"
+        host = os.getenv("REDIS_HOST")
 
         # Redis連接埠
-        port = 19940
+        port = os.getenv("REDIS_PORT")
 
         # Redis密碼
-        password = "npfT7SNhl3LZCqwOHKZrAGprMN1knQgs"
+        password = os.getenv("REDIS_PASSWORD")
 
         # 建立Redis連線URL
         url = f"redis://:{password}@{host}:{port}/0"
 
         # 建立RedisChatMessageHistory實例
         chat_message_history = RedisChatMessageHistory(
-            session_id="my_session",
+            session_id="session",
             url=url,
             key_prefix="message_store:"
         )

@@ -6,3 +6,6 @@ meta.json
 bot/voice/*.mp3
 bot/__pycache__/*
 *.sh
+meta.json
+.DS_Store
+customer

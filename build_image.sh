@@ -11,6 +11,7 @@ docker build -t ${IMAGE_NAME}:${TAG} .
 
 # Optionally, you can also tag this build as the latest
 # docker tag ${IMAGE_NAME}:${TAG} ${IMAGE_NAME}:latest
-
-docker images | grep ${IMAGE_NAME} | head -n 1
+echo '------------------------------------------------------------------------------------------------'
+docker images | head -n 2
+echo '------------------------------------------------------------------------------------------------'
  
